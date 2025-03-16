@@ -18,4 +18,4 @@ preview_id = "your_preview_id"
 
 # 加密密钥（通过wrangler secret设置）
 [secrets]
-ENCRYPTION_KEY_BASE64 = "@encryption_key_base64"
+ENCRYPTION_KEY_BASE64 = "c6aad780c6dae2674bd5e897e2a82027"
