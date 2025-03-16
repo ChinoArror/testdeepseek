@@ -1,6 +1,4 @@
-const HTML_CONTENT = await import('./index.html');
-const CSS_CONTENT = await import('./style.css');
-const JS_CONTENT = await import('./app.js');
+const HTML_CONTENT = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -56,18 +54,18 @@ const JS_CONTENT = await import('./app.js');
 <body>
     <h1>DeepSeek Chat</h1>
     <div class="config-panel">
-        <input type="text" id="apiKey" placeholder="API Key" value="${typeof DEFAULT_API_KEY !== 'undefined' ? '****************' : ''}">
+        <input type="text" id="apiKey" placeholder="API Key">
         <select id="model">
             <option value="deepseek-r1">deepseek-r1</option>
         </select>
-        <input type="number" id="temperature" value="0.7" step="0.1" min="0" max="2" placeholder="Temperature">
+        <input type="number" id="temperature" value="0.7" step="0.1" placeholder="Temperature">
         <button onclick="startChat()">Start Chat</button>
     </div>
     <div class="chat-container">
         <div id="chat-box"></div>
         <div class="input-area">
-            <input type="text" id="userInput" placeholder="Type your message...">
-            <button onclick="sendMessage()">Send</button>
+            <input type="text" id="userInput" placeholder="输入消息...">
+            <button onclick="sendMessage()">发送</button>
         </div>
     </div>
 
@@ -79,7 +77,7 @@ const JS_CONTENT = await import('./app.js');
             const messageDiv = document.createElement('div');
             messageDiv.className = \`message \${role}-message\`;
             messageDiv.innerHTML = content.replace(/\$\$(.*?)\$\$/g, '<div>\$1</div>')
-                                          .replace(/\$(.*?)\$/g, '\$1');
+                                        .replace(/\$(.*?)\$/g, '\$1');
             chatBox.appendChild(messageDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
@@ -133,29 +131,117 @@ const JS_CONTENT = await import('./app.js');
 </html>
 `;
 
-async function handleRequest(request) {
-  const url = new URL(request.url);
-  
-  // 处理API请求
-  if (url.pathname === '/api/chat') {
-    return handleChatRequest(request);
-  }
-
-  // 返回前端页面
-  return new Response(HTML_CONTENT, {
-    headers: { 
-      'Content-Type': 'text/html',
-      ...corsHeaders
-    }
-  });
-}
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+};
 
 async function handleChatRequest(request) {
-  // ...保持之前的API处理逻辑不变...
+    try {
+        const { messages, apiKey, model = 'deepseek-r1', temperature = 0.7 } = await request.json();
+
+        const stream = new TransformStream();
+        const writer = stream.writable.getWriter();
+        const encoder = new TextEncoder();
+
+        const deepseekRequest = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey || (typeof DEFAULT_API_KEY !== 'undefined' ? DEFAULT_API_KEY : '')}`
+            },
+            body: JSON.stringify({
+                model,
+                messages,
+                temperature,
+                stream: true
+            })
+        };
+
+        fetch("https://api.deepseek.com/v1/chat/completions", deepseekRequest)
+            .then(async (response) => {
+                const reader = response.body.getReader();
+                let buffer = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += new TextDecoder().decode(value);
+                    
+                    const parts = buffer.split("\n\n");
+                    buffer = parts.pop();
+
+                    for (const part of parts) {
+                        const chunk = part.replace(/^data: /, "").trim();
+                        if (chunk === "[DONE]") break;
+
+                        try {
+                            const data = JSON.parse(chunk);
+                            const content = data.choices[0].delta.content || "";
+                            const processed = content.replace(
+                                /\\\\([\(\)\[\]])/g, 
+                                (match, p1) => ({
+                                    '\\\\(': '$',
+                                    '\\\\)': '$',
+                                    '\\\\\\[': '$$',
+                                    '\\\\\\]': '$$'
+                                })[match] || p1
+                            );
+                            
+                            if (processed) {
+                                await writer.write(encoder.encode(`data: ${processed}\n\n`));
+                            }
+                        } catch (e) {
+                            console.error("Error parsing chunk:", e);
+                        }
+                    }
+                }
+
+                await writer.close();
+            })
+            .catch(async (error) => {
+                await writer.write(encoder.encode(`error: ${error.message}\n\n`));
+                await writer.close();
+            });
+
+        return new Response(stream.readable, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                ...corsHeaders
+            }
+        });
+
+    } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: corsHeaders
+        });
+    }
 }
 
-// ...保持之前的helper函数和常量不变...
+async function handleRequest(request) {
+    const url = new URL(request.url);
+    
+    if (request.method === "OPTIONS") {
+        return new Response(null, { headers: corsHeaders });
+    }
+
+    if (url.pathname === "/api/chat") {
+        return handleChatRequest(request);
+    }
+
+    return new Response(HTML_CONTENT, {
+        headers: { 
+            "Content-Type": "text/html",
+            ...corsHeaders
+        }
+    });
+}
 
 export default {
-  fetch: handleRequest
+    fetch: handleRequest
 };
