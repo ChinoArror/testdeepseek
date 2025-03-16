@@ -251,7 +251,7 @@ async function handleChatRequest(request) {
                 await writer.close();
             })
             .catch(async (error) => {
-                await writer.write(encoder.encode(\`error: \${error.message}\\n\\n\`));
+                await writer.write(encoder.encode(`error: \${error.message}\n\n`));
                 await writer.close();
             });
 
