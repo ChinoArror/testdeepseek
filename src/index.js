@@ -241,7 +241,7 @@ async function handleChatRequest(request) {
                                     .replace(/\\\\([()\\[\\]])/g, (_, p1) => 
                                         ({ '(': '$', ')': '$', '[': '$$', ']': '$$' }[p1]));
                                 
-                                await writer.write(encoder.encode(\data: \${processed}\\n\\n\`));
+                                await writer.write(encoder.encode(`data: \${processed}\n\n`));
                             }
                         } catch (e) {
                             console.error("Stream parse error:", e);
