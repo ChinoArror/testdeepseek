@@ -1,4 +1,6 @@
-const HTML_CONTENT = `
+const HTML_CONTENT = await import('./index.html');
+const CSS_CONTENT = await import('./style.css');
+const JS_CONTENT = await import('./app.js');
 <!DOCTYPE html>
 <html>
 <head>
