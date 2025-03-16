@@ -13,7 +13,7 @@ ENCRYPTION_KEY_VERSION = "v1"
 # KV存储配置
 [[kv_namespaces]]
 binding = "ENCRYPTED_STORAGE"
-id = "your_kv_namespace_id"
+id = "df1a3dbe11df4fc4a04d58648f0b7b9d"
 preview_id = "your_preview_id"
 
 # 加密密钥（通过wrangler secret设置）
