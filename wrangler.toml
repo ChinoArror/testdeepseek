@@ -1,1 +1,9 @@
+name = "deepseek-chat"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+
+[vars]
+DEFAULT_API_KEY = "sk-a96fce2c05e14d78bd5195534b211385"  # 在部署时设置
+
+[build]
 
